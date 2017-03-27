@@ -3,37 +3,39 @@ KACE-Alert
 
 This is a powershell interface and control mechanism for the KACE Windows User Alert (KUserAlert.exe) included with the KACE K1000 Agent software.
 
-#Requirements
+## Requirements
 * Windows OS Only
 * KACE K1000 Agent installed on local system
 * Powershell v2+
 
-#Functionality
+## Functionality
 * Launch, Monitor, Update, and Close KACE Alerts
 * 
 
-#Instructions
-To use as a script (as-is):
+
+## Instructions
+#### To use as a script (as-is):
 ```powershell
   # Running the 
   PS C:\> C:\Path\to\script\KACE-Alert.ps1 -Name "SoftwareUpdate" -Title "Software Update" -Message "Please click ok to proceed"
   
 ```
 
-To use this in a powershell script, embed the script in a function by putting the contents between these two lines:
+#### To use this in a powershell script, embed the script in a function by putting the contents between these two lines:
 ```powershell
   function KACE-Alert {
     #Script Contents
   }
 ```
-Any calls to the function would then be formatted as follows:
+### Any calls to the function would then be formatted as follows:
 ```powershell
   KACE-Alert -Name "SoftwareUpdate" -Title "Software Update" -Message "Please click ok to proceed"
 ```
 
-#Examples
 
-### Create a new alert
+## Examples
+
+#### Create a new alert
 ```powershell
 #Create a new message window with the Title "Software Update" and message "Please click ok to proceed" and OK, Snooze, and Cancel buttons. This includes custom options as follows: 5 minute timeout, snooze on timeout, limit of 5 snoozes.
 
@@ -42,7 +44,7 @@ Any calls to the function would then be formatted as follows:
   OK
 ```
 
-### Create an alert without any buttons
+#### Create an alert without any buttons
 ```powershell
 	#Create a new message window with the message "Please wait. Software is being installed." without any buttons. This command returns the PID of the launched alert window.
 
@@ -51,7 +53,7 @@ Any calls to the function would then be formatted as follows:
   7096
 ```
 
-### Update and append text to an alert
+#### Update and append text to an alert
 ```powershell
 	#Update and append a message window. The message window must be identified by "name" used when the alert was launched.
 
@@ -60,7 +62,7 @@ Any calls to the function would then be formatted as follows:
   UPDATE
   ```
   
-### Launch an alert and return exit code only
+#### Launch an alert and return exit code only
 ```powershell
 	#Create an alert window in standalone mode. This will return only INT exit codes, rather than string return values. Possible exit codes are 0, 1, and 99.
 
