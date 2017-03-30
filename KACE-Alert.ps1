@@ -6,7 +6,7 @@
 	You can use KACE-Prompt to launch, udpate, or destroy KACE Agent Alert windows.
 
 .PARAMETER Name
-  Required parameter, unique string that identifies the alert window for updates or termination. This string also appears in the header bar of the alert window.
+	Required parameter, unique string that identifies the alert window for updates or termination. This string also appears in the header bar of the alert window.
 
 .PARAMETER Title
 	Optional title appearing above the block of text in alert windows.
@@ -18,13 +18,13 @@
 	Update the message text in an alert window without changing any other paraemters of the alert.
 
 .PARAMETER Append
-  Update the message text and append to existing text in an alert window without changing any other paraemters of the alert.
+	Update the message text and append to existing text in an alert window without changing any other paraemters of the alert.
 
 .PARAMETER Timeout
 	Time (in seconds) to leave an alert on screen before timing out and closing. (Default is 43200, or 12 hours.)
 
 .PARAMETER TimeoutAction
-  Action to take after timeout is reached. (Default is "Cancel")
+	Action to take after timeout is reached. (Default is "Cancel")
 
 .PARAMETER yesno
 	Present alert window with Yes/No buttons. (This button set cannot be combined with any other buttons)
@@ -45,7 +45,7 @@
 	Maximum number of times the snooze button will be shown/allowed.
 
 .PARAMETER SnoozeLimitAction
-  Action to take after Snooze Limit is reached, if user still does not select any buttons. (Default is "Cancel")
+	Action to take after Snooze Limit is reached, if user still does not select any buttons. (Default is "Cancel")
 
 .PARAMETER SnoozeTime
 	Present alert window with an OK button.
@@ -54,7 +54,7 @@
 	Close the alert window matching the named alert window.
 
 .PARAMETER NoWait
-  Override the default "Wait for completion" behavior on alerts that wait for user input.
+	Override the default "Wait for completion" behavior on alerts that wait for user input.
 
 .PARAMETER Silent
 	Run script in silent mode, returning only exit codes, rather than text returns.
