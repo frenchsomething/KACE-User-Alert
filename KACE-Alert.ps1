@@ -53,6 +53,9 @@
 .PARAMETER Destroy
 	Close the alert window matching the named alert window.
 
+.PARAMETER NoWait
+  Override the default "Wait for completion" behavior on alerts that wait for user input.
+
 .PARAMETER Silent
 	Run script in silent mode, returning only exit codes, rather than text returns.
 
@@ -138,11 +141,13 @@ Param
   [Int]$SnoozeTime=900,
       [Parameter(ParameterSetName='Destroy')]
   [Switch]$Destroy,
+  [Parameter(ParameterSetName='YesNo')]
+  [Parameter(ParameterSetName='Buttons')]
+  [Switch]$NoWait,
   [Switch]$Silent
 )
 
-function ExitWithCode
-{
+function ExitWithCode {
     param
     (
         $exitcode
@@ -204,34 +209,60 @@ ElseIf ( $PSCmdlet.ParameterSetName -eq 'Destroy' ) {
 }
 ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
   #YesNo buttons selected
-  $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno" -NoNewWindow -PassThru -wait
-
-  If (Test-Path $AlertIndicatorPrefix"YES."$IndicatorExt) {
-    If ($Silent) { ExitWithCode 0 }
-    Else { return "YES" }
+  If($NoWait) {
+    $Alert = Invoke-WMIMethod -Class Win32_Process -Name Create -ArgumentList """$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno"""
+    If ($Alert) {
+      If ($Silent) { ExitWithCode 0 }
+      Else { return $Alert.Id }
     }
+    Else {
+      If ($Silent) { ExitWithCode 1 }
+      Else { return "FAILED" }
+    }
+  }
   Else {
-      If (($Alert.ExitTime-$Alert.StartTime).TotalSeconds -gt $Timeout) {
-        If ($Silent) {
-          If ($TimeoutAction -match "(YES|OK)") { ExitWithCode 0 }
-          Else { ExitWithCode 1 }
+    $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno" -NoNewWindow -PassThru -wait
+
+    If (Test-Path $AlertIndicatorPrefix"YES."$IndicatorExt) {
+      If ($Silent) { ExitWithCode 0 }
+      Else { return "YES" }
+      }
+    Else {
+        If (($Alert.ExitTime-$Alert.StartTime).TotalSeconds -gt $Timeout) {
+          If ($Silent) {
+            If ($TimeoutAction -match "(YES|OK)") { ExitWithCode 0 }
+            Else { ExitWithCode 1 }
+          }
+          Else { return "TIMEOUT" }
         }
-        Else { return "TIMEOUT" }
-      }
-      Else {
-        If ($Silent) { ExitWithCode 1 }
-        Else { return "NO" }
-      }
+        Else {
+          If ($Silent) { ExitWithCode 1 }
+          Else { return "NO" }
+        }
+    }
   }
 }
 ElseIf ( $PSCmdlet.ParameterSetName -eq 'NoButtons' ) {
   #No Buttons used
   $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -cancel" -NoNewWindow -PassThru
   #Return PID of alert
-  return $Alert.Id
+  If ($Silent) { ExitWithCode 0 }
+  Else { return $Alert.Id }
 }
 Else {
   # "Standard Buttons used"
+  If($NoWait) {
+    $Alert = Invoke-WMIMethod -Class Win32_Process -Name Create -ArgumentList """$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString"""
+    If ($Alert) {
+      If ($Silent) { ExitWithCode 0 }
+      Else { return $Alert.Id }
+    }
+    Else {
+      If ($Silent) { ExitWithCode 1 }
+      Else { return "FAILED" }
+    }
+  }
+  Else {
   $AlertResponses="DESTROY","CANCEL","SNOOZE"
   $Buttons = @()
   If($OK) { $Buttons += "-ok" }
@@ -301,7 +332,6 @@ Else {
   }
   Else {
     $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -NoNewWindow -PassThru -wait
-
     ForEach ($x in $AlertResponses) {
         If (Test-Path "$AlertIndicatorPrefix$x.$IndicatorExt") {
             $ButtonResponse=$true
@@ -333,4 +363,5 @@ Else {
         }
     }
   }
+}
 }
