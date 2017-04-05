@@ -53,6 +53,9 @@
 .PARAMETER Destroy
 	Close the alert window matching the named alert window.
 
+.PARAMETER Minimized
+	Set the alert to launch minimized, so that users will only see the alert if they click the task bar icon.
+
 .PARAMETER NoWait
 	Override the default "Wait for completion" behavior on alerts that wait for user input.
 
@@ -144,6 +147,10 @@ Param
   [Parameter(ParameterSetName='YesNo')]
   [Parameter(ParameterSetName='Buttons')]
   [Switch]$NoWait,
+  [Parameter(ParameterSetName='YesNo')]
+  [Parameter(ParameterSetName='Buttons')]
+  [Parameter(ParameterSetName='NoButtons')]
+  [Switch]$Minimized,
   [Switch]$Silent
 )
 
@@ -173,8 +180,10 @@ function Get-StringHash([String] $String,$HashName = "MD5") {
 ###################################
 ###################################
 
+#
+$AlertMesgDir=$env:ProgramData+"\Dell\KACE\user\"
 # Alert prefix is standard, set it here for building alert indicator file paths later
-$AlertIndicatorPrefix=$env:ProgramData+"\Dell\KACE\user\KUSERALERT_"
+$AlertIndicatorPrefix=$AlertMesgDir+"KUSERALERT_"
 # The alert indicator files use a file extension that is a MD5 hash of the "Name" field.
 $IndicatorExt=Get-StringHash($Name)
 # Set path to KUserAlert.exe based on OS Architecture, since KACE Agent is only 32-bit, this is pretty easy.
@@ -185,8 +194,34 @@ If (-not (Test-Path $AlertPath)) {
   Else { return "KUSERALERT_MISSING" }
 }
 
+# Delete any stale response messages from the KACE User directory
+  (Get-ChildItem $AlertMesgDir) | ForEach-Object {
+    If($_.Extension -eq ".$IndicatorExt") {
+      Remove-Item $_.FullName
+    }
+  }
+
 ###################################
 ###################################
+
+If($Minimized) {
+  # Set the window styles of the respective commands to Minimized
+  $PSWMI=[wmiclass]"Win32_ProcessStartup"
+  $PSWMI.Properties['ShowWindow'].value=11
+  #https://blogs.technet.microsoft.com/option_explicit/2012/12/04/psexec-for-powershell/
+  #https://msdn.microsoft.com/en-us/library/aa394375%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
+  $WindowStyle="Minimized"
+}
+Else{
+  # Set the window styles to Normal
+  $PSWMI=[wmiclass]"Win32_ProcessStartup"
+  $PSWMI.Properties['ShowWindow'].value=1
+  #https://blogs.technet.microsoft.com/option_explicit/2012/12/04/psexec-for-powershell/
+  #https://msdn.microsoft.com/en-us/library/aa394375%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
+  $WindowStyle="Normal"
+}
+
+
 
 If ( $PSCmdlet.ParameterSetName -eq 'Update' ) {
   If ($Append) {
@@ -210,10 +245,10 @@ ElseIf ( $PSCmdlet.ParameterSetName -eq 'Destroy' ) {
 ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
   #YesNo buttons selected
   If($NoWait) {
-    $Alert = Invoke-WMIMethod -Class Win32_Process -Name Create -ArgumentList """$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno"""
+    $Alert = ([wmiclass]"win32_Process").create("""$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno""",$null,$PSWMI)
     If ($Alert) {
       If ($Silent) { ExitWithCode 0 }
-      Else { return $Alert.Id }
+      Else { return $Alert }
     }
     Else {
       If ($Silent) { ExitWithCode 1 }
@@ -221,7 +256,7 @@ ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
     }
   }
   Else {
-    $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno" -NoNewWindow -PassThru -wait
+    $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -yesno" -WindowStyle $WindowStyle -PassThru -wait
 
     If (Test-Path $AlertIndicatorPrefix"YES."$IndicatorExt) {
       If ($Silent) { ExitWithCode 0 }
@@ -243,19 +278,20 @@ ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
   }
 }
 ElseIf ( $PSCmdlet.ParameterSetName -eq 'NoButtons' ) {
-  #No Buttons used
-  $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -cancel" -NoNewWindow -PassThru
+  #No Buttons used, treid running Invoke-WMIMethod, but that cmdlet isn't supported in Powershell 2.0
+  #Switched to manually launching a win32_process to launch alert so that the alert process isn't a child of the powershell process
+  $PSProcess=([wmiclass]"win32_Process").create("""$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout -cancel",$null,$PSWMI)
   #Return PID of alert
   If ($Silent) { ExitWithCode 0 }
-  Else { return $Alert.Id }
+  Else { return $Alert }
 }
 Else {
   # "Standard Buttons used"
   If($NoWait) {
-    $Alert = Invoke-WMIMethod -Class Win32_Process -Name Create -ArgumentList """$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString"""
+    $Alert = ([wmiclass]"win32_Process").create("""$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString""",$null,$PSWMI)
     If ($Alert) {
       If ($Silent) { ExitWithCode 0 }
-      Else { return $Alert.Id }
+      Else { return $Alert }
     }
     Else {
       If ($Silent) { ExitWithCode 1 }
@@ -278,11 +314,11 @@ Else {
       }
       $Snoozed=$false
       If ($SnoozeCount -lt $SnoozeLimit) {
-        $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -NoNewWindow -PassThru -wait
+        $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -WindowStyle $WindowStyle -PassThru -wait
       }
       Else {
         $ButtonString = $ButtonString.replace("-snooze","")
-        $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -NoNewWindow -PassThru -wait
+        $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -WindowStyle $WindowStyle -PassThru -wait
       }
       $ButtonResponse=$false
       ForEach ($x in $AlertResponses) {
@@ -331,7 +367,7 @@ Else {
     Else { return "SNOOZELIMIT" }
   }
   Else {
-    $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -NoNewWindow -PassThru -wait
+    $Alert = Start-Process $AlertPath -ArgumentList "-name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString" -WindowStyle $WindowStyle -PassThru -wait
     ForEach ($x in $AlertResponses) {
         If (Test-Path "$AlertIndicatorPrefix$x.$IndicatorExt") {
             $ButtonResponse=$true
