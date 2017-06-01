@@ -157,11 +157,17 @@ Param
 function ExitWithCode {
     param
     (
-        $exitcode
+        $exitcode,
+        $exittext
     )
 
     $host.SetShouldExit($exitcode)
-    exit $exitcode
+    If($exitcode -eq 0){
+        exit $exitcode
+    }
+    Else {
+        throw $exittext
+    }
 }
 
 function Get-StringHash([String] $String,$HashName = "MD5") {
@@ -190,7 +196,7 @@ $IndicatorExt=Get-StringHash($Name)
 If (Test-Path "$Env:SYSTEMDRIVE\Program Files (x86)" -PathType Container) {$AlertPath = $env:SYSTEMDRIVE+"\Program Files (x86)\Dell\KACE\KUserAlert.exe"} Else {$AlertPath = $env:SYSTEMDRIVE+"\Program Files\Dell\KACE\KUserAlert.exe"}
 # Make sure the KUserAlert.exe file is present as expected.
 If (-not (Test-Path $AlertPath)) {
-  If ($Silent) { ExitWithCode 2 }
+  If ($Silent) { ExitWithCode 2 "KUSERALERT_MISSING" }
   Else { return "KUSERALERT_MISSING" }
 }
 
@@ -224,10 +230,20 @@ Else{
 
 
 If ( $PSCmdlet.ParameterSetName -eq 'Update' ) {
+  $a=$false
   If ($Append) {
-      Add-Content $AlertIndicatorPrefix"APND."$IndicatorExt ""
+      $a=$true
   }
-  Add-Content $AlertIndicatorPrefix"MESG."$IndicatorExt $Message
+  $Message.Split("`n") | ForEach {
+    If($a) {
+      Add-Content $AlertIndicatorPrefix"APND."$IndicatorExt ""
+    }
+    Add-Content $AlertIndicatorPrefix"MESG."$IndicatorExt $_
+    $a=$true
+    While(Test-Path $AlertIndicatorPrefix"MESG."$IndicatorExt) {Start-Sleep -Milliseconds 5}
+ }
+  #Add-Content $AlertIndicatorPrefix"MESG."$IndicatorExt "$Message"
+  #$Message | Out-File -filepath $AlertIndicatorPrefix"MESG."$IndicatorExt
   If ($Silent) { ExitWithCode 0 }
   Else { return "MESSAGEUPDATED" }
 }
@@ -251,7 +267,7 @@ ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
       Else { return $Alert }
     }
     Else {
-      If ($Silent) { ExitWithCode 1 }
+      If ($Silent) { ExitWithCode 1 "FAILED" }
       Else { return "FAILED" }
     }
   }
@@ -265,13 +281,13 @@ ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
     Else {
         If (($Alert.ExitTime-$Alert.StartTime).TotalSeconds -gt $Timeout) {
           If ($Silent) {
-            If ($TimeoutAction -match "(YES|OK)") { ExitWithCode 0 }
+            If ($TimeoutAction -match "(YES|OK)") { ExitWithCode 0 "TIMEOUT" }
             Else { ExitWithCode 1 }
           }
           Else { return "TIMEOUT" }
         }
         Else {
-          If ($Silent) { ExitWithCode 1 }
+          If ($Silent) { ExitWithCode 1 "NO" }
           Else { return "NO" }
         }
     }
@@ -287,6 +303,12 @@ ElseIf ( $PSCmdlet.ParameterSetName -eq 'NoButtons' ) {
 }
 Else {
   # "Standard Buttons used"
+  # Build the string used to display buttons in the alert windows
+  $Buttons = @()
+  If($OK) { $Buttons += "-ok" }
+  If($Snooze) { $Buttons += "-snooze" }
+  If($Cancel) { $Buttons += "-cancel" }
+  $ButtonString=$([string]::join(" ", $Buttons))
   If($NoWait) {
     $Alert = ([wmiclass]"win32_Process").create("""$AlertPath"" -name=""$Name"" -title=""$Title"" -message=""$Message"" -timeout=$Timeout $ButtonString""",$null,$PSWMI)
     If ($Alert) {
@@ -294,17 +316,12 @@ Else {
       Else { return $Alert }
     }
     Else {
-      If ($Silent) { ExitWithCode 1 }
+      If ($Silent) { ExitWithCode 1 "FAILED" }
       Else { return "FAILED" }
     }
   }
   Else {
   $AlertResponses="DESTROY","CANCEL","SNOOZE"
-  $Buttons = @()
-  If($OK) { $Buttons += "-ok" }
-  If($Snooze) { $Buttons += "-snooze" }
-  If($Cancel) { $Buttons += "-cancel" }
-  $ButtonString=$([string]::join(" ", $Buttons))
   If ($Snooze) {
     $SnoozeCount=1
     Do {
@@ -328,15 +345,15 @@ Else {
                 $Snoozed=$true
               }
               ElseIf ($x -eq "DESTROY") {
-                If ($Silent) { ExitWithCode 99 }
+                If ($Silent) { ExitWithCode 99 $x }
                 Else { return $x }
               }
               ElseIf ($x -eq "CANCEL") {
-                If ($Silent) { ExitWithCode 1 }
+                If ($Silent) { ExitWithCode 1 $x }
                 Else { return $x }
               }
               Else {
-                If ($Silent) { ExitWithCode 1 }
+                If ($Silent) { ExitWithCode 1 $x }
                 Else { return $x }
               }
           }
@@ -349,7 +366,7 @@ Else {
             Else{
               If ($Silent) {
                 If ($TimeoutAction -eq "(OK|YES)") { ExitWithCode 0 }
-                Else { ExitWithCode 1 }
+                Else { ExitWithCode 1 "TIMEOUT" }
               }
               Else { return "TIMEOUT" }
             }
@@ -362,7 +379,7 @@ Else {
     } While (($Snoozed) -and ($SnoozeCount -lt $SnoozeLimit))
     If ($Silent) {
       If($SnoozeLimitAction -eq "OK") { ExitWithCode 0 }
-      Else { ExitWithCode 1 }
+      Else { ExitWithCode 1 "SNOOZELIMIT" }
     }
     Else { return "SNOOZELIMIT" }
   }
@@ -372,15 +389,15 @@ Else {
         If (Test-Path "$AlertIndicatorPrefix$x.$IndicatorExt") {
             $ButtonResponse=$true
             If ($x -eq "DESTROY") {
-              If ($Silent) { ExitWithCode 99 }
+              If ($Silent) { ExitWithCode 99 $x }
               Else { return $x }
             }
             ElseIf ($x -eq "CANCEL") {
-              If ($Silent) { ExitWithCode 1 }
+              If ($Silent) { ExitWithCode 1 $x }
               Else { return $x }
             }
             Else {
-              If ($Silent) { ExitWithCode 1 }
+              If ($Silent) { ExitWithCode 1 $x }
               Else { return $x }
             }
         }
@@ -389,7 +406,7 @@ Else {
         If (($Alert.ExitTime-$Alert.StartTime).TotalSeconds -gt $Timeout) {
           If ($Silent) {
             If ($TimeoutAction -eq "(OK|YES)") { ExitWithCode 0 }
-            Else { ExitWithCode 1 }
+            Else { ExitWithCode 1 "TIMEOUT" }
           }
           Else { return "TIMEOUT" }
         }
