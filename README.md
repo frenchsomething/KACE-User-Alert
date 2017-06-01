@@ -10,7 +10,6 @@ This is a powershell interface and control mechanism for the KACE Windows User A
 
 ## Functionality
 * Launch, Monitor, Update, and Close KACE Alerts
-* 
 
 
 ## Instructions
@@ -64,7 +63,7 @@ This is a powershell interface and control mechanism for the KACE Windows User A
   
 #### Launch an alert and return exit code only
 ```powershell
-	#Create an alert window in standalone mode. This will return only INT exit codes, rather than string return values. Possible exit codes are 0, 1, and 99.
+	#Create an alert window in standalone mode. This will return only INT exit codes, rather than string return values.
 
 	PS C:\> KACE-Alert.ps1 -Name "SoftwareUpdate" -Message "Please click ok to proceed" -Ok -Snooze -Cancel -TimoutAction "Snooze" -SnoozeLimit 5 -SnoozeLimitAction "OK" -Silent
 
