@@ -282,7 +282,7 @@ ElseIf( $PSCmdlet.ParameterSetName -eq 'YesNo') {
         If (($Alert.ExitTime-$Alert.StartTime).TotalSeconds -gt $Timeout) {
           If ($Silent) {
             If ($TimeoutAction -match "(YES|OK)") { ExitWithCode 0 "TIMEOUT" }
-            Else { ExitWithCode 1 }
+            Else { ExitWithCode 1 "TIMEOUT" }
           }
           Else { return "TIMEOUT" }
         }
